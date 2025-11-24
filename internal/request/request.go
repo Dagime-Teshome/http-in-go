@@ -144,11 +144,6 @@ func requestLineFromString(reqLine string) (*RequestLine, error) {
 	if httpVersionParts[0] != "HTTP" {
 		return nil, fmt.Errorf("unrecognized HTTP-version: %s", httpVersionParts[0])
 	}
-	fmt.Println(&RequestLine{
-		HttpVersion:   httpVersionParts[1],
-		RequestTarget: reqParts[1],
-		Method:        reqParts[0],
-	}, "=====")
 	return &RequestLine{
 		HttpVersion:   httpVersionParts[1],
 		RequestTarget: reqParts[1],

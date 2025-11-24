@@ -1,6 +1,7 @@
 package main
 
 import (
+	"MODULE_NAME/internal/request"
 	"errors"
 	"fmt"
 	"io"
@@ -61,12 +62,15 @@ func main() {
 		if err != nil {
 			log.Fatalf("error: %s\n", err.Error())
 		}
-		fmt.Println("Accepted Connection From", connection.RemoteAddr())
-		line := getLinesChannel(connection)
-		for line := range line {
-			fmt.Println(line)
-		}
-		fmt.Println("Connection to ", connection.RemoteAddr(), "closed")
+		// fmt.Println("Accepted Connection From", connection.RemoteAddr())
+		// line := getLinesChannel(connection)
+		request, err := request.RequestFromReader(connection)
+		// for line := range line {
+		// 	fmt.Println(line)
+		// }
+		// fmt.Println("Connection to ", connection.RemoteAddr(), "closed")
+
+		fmt.Printf("Request line:\n - Method: %s \n - Target: %s \n - Version: %s", request.RequestLine.Method, request.RequestLine.RequestTarget, request.RequestLine.HttpVersion)
 
 	}
 }
