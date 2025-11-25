@@ -11,8 +11,6 @@ import (
 
 type Status int
 
-const bufferSize = 8
-
 const (
 	initialized Status = iota
 	done
@@ -20,6 +18,7 @@ const (
 
 type Request struct {
 	RequestLine RequestLine
+	Headers     map[string]string
 	Status      Status
 }
 
@@ -30,32 +29,48 @@ type RequestLine struct {
 }
 
 func (r *Request) parse(data []byte) (int, error) {
-	var noBytes int
-	if r.Status == initialized {
-		requestLine, noBytes, err := parseRequestLine(data)
-		if err != nil {
-			return 0, errors.New("Error parsing stream")
-		}
-		if noBytes == 0 {
-			return 0, nil
-		} else if noBytes > 0 {
+	var bytesParsed int
+	requestDone := false
+	switch r.Status {
+	case initialized:
+		if requestDone {
+			// call header parse
+			header, byteParsed, err := parseHeader(data)
+			if err != nil {
+				return 0, err
+			}
+			if byteParsed == 0 {
+				return 0, err
+			}
+			if len(header) == 1 {
+				r.Status = done
+			}
+			r.Headers[header[0]] = header[1]
+		} else {
+			requestLine, bytesParsed, err := parseRequestLine(data)
+			if err != nil {
+				return 0, errors.New("Error parsing stream")
+			}
+			if bytesParsed == 0 {
+				return 0, nil
+			}
 			r.RequestLine = *requestLine
-			r.Status = done
-
+			requestDone = true
 		}
-	} else if r.Status == done {
+
+	case done:
 		return 0, errors.New("Trying to read from done parser")
-	} else {
+	default:
 		return 0, errors.New("unknown state")
 	}
-	return noBytes, nil
+	return bytesParsed, nil
 }
 
+const bufferSize = 8
 const crlf = "\r\n"
+const headerEnd = "\r\n\r\n"
 
 func RequestFromReader(reader io.Reader) (*Request, error) {
-	// request, err := io.ReadAll(reader);
-	// reqLine, err := parseRequestLine(request)
 
 	buf := make([]byte, bufferSize, bufferSize)
 	readToIndex := 0
@@ -64,6 +79,7 @@ func RequestFromReader(reader io.Reader) (*Request, error) {
 		RequestLine: RequestLine{},
 		Status:      initialized,
 	}
+
 	for request.Status != done {
 		if readToIndex >= len(buf) {
 			newBuf := make([]byte, len(buf)*2)
@@ -80,13 +96,13 @@ func RequestFromReader(reader io.Reader) (*Request, error) {
 			return nil, err
 		}
 		readToIndex += numBytesRead
-		numbBytesParsed, err := request.parse(buf)
+		numBytesParsed, err := request.parse(buf)
 		if err != nil {
 			return nil, err
 		}
 
-		copy(buf, buf[numbBytesParsed:readToIndex])
-		readToIndex -= numbBytesParsed
+		copy(buf, buf[numBytesParsed:readToIndex])
+		readToIndex -= numBytesParsed
 	}
 
 	return &request, nil
@@ -95,15 +111,43 @@ func RequestFromReader(reader io.Reader) (*Request, error) {
 func parseRequestLine(request []byte) (*RequestLine, int, error) {
 	crlfIndex := bytes.Index(request, []byte(crlf))
 	if crlfIndex == -1 {
-		return &RequestLine{}, 0, nil
+		return nil, 0, nil
 	}
 	requestLineText := string(request[:crlfIndex])
 	requestLine, err := requestLineFromString(requestLineText)
-	fmt.Println(requestLine)
 	if err != nil {
 		return nil, 0, err
 	}
-	return requestLine, crlfIndex + 2, nil
+	// the +2 is to take into account the \r\n characters
+	bytesParsed := crlfIndex + 2
+	return requestLine, bytesParsed, nil
+
+}
+
+func parseHeader(request []byte) ([]string, int, error) {
+	headerEnd := bytes.Index(request, []byte(headerEnd))
+	if headerEnd == -1 {
+		crlfIndex := bytes.Index(request, []byte(crlf))
+		if crlfIndex == -1 {
+			return nil, 0, nil
+		}
+		headerText := string(request[:crlfIndex])
+		headerSlice, err := getHeaderFromString(headerText)
+		if err != nil {
+			return nil, 0, err
+		}
+		return headerSlice, crlfIndex + 2, nil
+
+	}
+	header := []string{" "}
+	return header, 0, nil
+}
+func getHeaderFromString(s string) ([]string, error) {
+	headerParts := strings.Split(s, ":")
+	if len(headerParts) != 2 {
+		return nil, errors.New("invalid header length")
+	}
+	return headerParts, nil
 
 }
 
