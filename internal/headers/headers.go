@@ -3,10 +3,15 @@ package headers
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"strings"
 )
 
 type Headers map[string]string
+
+func NewHeaders() Headers {
+	return Headers{}
+}
 
 const crlf = "\r\n"
 
@@ -15,27 +20,29 @@ func (h Headers) Parse(data []byte) (n int, done bool, err error) {
 	if crlfIndex == -1 {
 		return 0, false, nil
 	} else if crlfIndex == 0 {
-		return 0, true, nil
+		return 2, true, nil
 	}
 	headerString := string(data[:crlfIndex])
-	headerParts, err := parseHeader(headerString)
+	key, value, err := getHeaderFromString(headerString)
 
 	if err != nil {
 		// handle error
 		return 0, false, err
 	}
-	h[headerParts[0]] = headerParts[1]
-	return crlfIndex, false, nil
+	h[key] = value
+	fmt.Println(h, "-----------")
+	return crlfIndex + 2, false, nil
 }
 
-func parseHeader(s string) ([]string, error) {
-	return
-}
-func getHeaderFromString(s string) ([]string, error) {
-	headerParts := strings.Split(s, ":")
-	if len(headerParts) != 2 {
-		return nil, errors.New("invalid header length")
+func getHeaderFromString(s string) (string, string, error) {
+	colonIndex := strings.Index(s, ":")
+	key := s[:colonIndex]
+	value := s[colonIndex+1:]
+
+	if strings.Contains(key, " ") {
+		return "", "", errors.New("Bad Request")
 	}
-	return headerParts, nil
+	value = strings.TrimSpace(value)
+	return key, value, nil
 
 }
