@@ -15,7 +15,7 @@ func TestHeadersParsing(t *testing.T) {
 	n, done, err := h.Parse(data)
 	require.NoError(t, err)
 	require.NotNil(t, h)
-	assert.Equal(t, "localhost:42069", h["Host"])
+	assert.Equal(t, "localhost:42069", h.Get("Host"))
 	assert.Equal(t, 23, n)
 	assert.False(t, done)
 
@@ -34,7 +34,7 @@ func TestHeadersParsing(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, h)
 	assert.Equal(t, "localhost:42069", h["host"])
-	assert.Equal(t, "curl/7.81.0", h["User-Agent"])
+	assert.Equal(t, "curl/7.81.0", h.Get("User-Agent"))
 	assert.Equal(t, 25, n)
 	assert.False(t, done)
 
@@ -66,6 +66,31 @@ func TestHeadersParsing(t *testing.T) {
 	assert.Equal(t, "localhost:42069", h["host"])
 	assert.Equal(t, "sfs4392", h["auth"])
 	assert.Equal(t, 14, n)
+	assert.False(t, done)
+	// Test for invalid key values
+	h = make(Headers)
+	data = []byte("H©st: localhost:42069\r\n\r\n")
+	n, done, err = h.Parse(data)
+	require.Error(t, err)
+	assert.Equal(t, 0, n)
+	assert.False(t, done)
+
+	// test for case insensitivity
+	h = make(Headers)
+	data = []byte("Host: localhost:42069\r\n\r\n")
+	n, done, err = h.Parse(data)
+	assert.Equal(t, "localhost:42069", h.Get("host"))
+	assert.Equal(t, 23, n)
+	assert.False(t, done)
+
+	// Test: Valid single header
+	h = map[string]string{"host": "initialValue"}
+	data = []byte("Host: anotherValue\r\n\r\n")
+	n, done, err = h.Parse(data)
+	require.NoError(t, err)
+	require.NotNil(t, h)
+	assert.Equal(t, "initialValue,anotherValue", h.Get("Host"))
+	assert.Equal(t, 20, n)
 	assert.False(t, done)
 
 }
