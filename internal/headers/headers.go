@@ -3,7 +3,6 @@ package headers
 import (
 	"bytes"
 	"errors"
-	"fmt"
 	"strings"
 )
 
@@ -26,12 +25,24 @@ func (h Headers) Parse(data []byte) (n int, done bool, err error) {
 	key, value, err := getHeaderFromString(headerString)
 
 	if err != nil {
-		// handle error
 		return 0, false, err
 	}
-	h[key] = value
-	fmt.Println(h, "-----------")
+	h.Set(key, value)
 	return crlfIndex + 2, false, nil
+}
+
+func (h Headers) Set(key string, value string) {
+	existingValue, exists := h[key]
+	if exists {
+		h[key] = existingValue + "," + value
+		return
+	}
+	h[key] = value
+}
+
+func (h Headers) Get(key string) string {
+	keyLower := strings.ToLower(key)
+	return h[keyLower]
 }
 
 func getHeaderFromString(s string) (string, string, error) {
@@ -42,7 +53,36 @@ func getHeaderFromString(s string) (string, string, error) {
 	if strings.Contains(key, " ") {
 		return "", "", errors.New("Bad Request")
 	}
+	if len(key) < 1 {
+		return "", "", errors.New("Invalid length for key")
+	}
+	if !Validate(key) {
+		return "", "", errors.New("Invalid character used in key")
+	}
 	value = strings.TrimSpace(value)
+	key = strings.ToLower(key)
 	return key, value, nil
 
+}
+
+func Validate(s string) bool {
+	specialChars := "!#$%&'*+-.^_`|~"
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+
+		// A–Z, a–z, 0–9
+		if (c >= 'A' && c <= 'Z') ||
+			(c >= 'a' && c <= 'z') ||
+			(c >= '0' && c <= '9') {
+			continue
+		}
+
+		// Special characters via map
+		if strings.Contains(specialChars, string(c)) {
+			continue
+		}
+
+		return false
+	}
+	return true
 }
