@@ -1,6 +1,7 @@
 package request
 
 import (
+	"MODULE_NAME/internal/headers"
 	"bytes"
 	"errors"
 	"fmt"
@@ -14,11 +15,12 @@ type Status int
 const (
 	initialized Status = iota
 	done
+	ParsingHeaders
 )
 
 type Request struct {
 	RequestLine RequestLine
-	Headers     map[string]string
+	Headers     headers.Headers
 	Status      Status
 }
 
@@ -29,25 +31,34 @@ type RequestLine struct {
 }
 
 func (r *Request) parse(data []byte) (int, error) {
-	var bytesParsed int
 	switch r.Status {
 	case initialized:
 
-		requestLine, bytesParsed, err := parseRequestLine(data)
+		requestLine, startLineParsed, err := parseRequestLine(data)
 		if err != nil {
 			return 0, errors.New("Error parsing stream")
 		}
-		if bytesParsed == 0 {
+		if startLineParsed == 0 {
 			return 0, nil
 		}
+		r.Status = ParsingHeaders
 		r.RequestLine = *requestLine
-
+		return startLineParsed, nil
+	case ParsingHeaders:
+		fmt.Println("-----------------parsing header------------------")
+		headerParsed, finished, err := r.Headers.Parse(data)
+		if err != nil {
+			return 0, err
+		}
+		if finished {
+			r.Status = done
+		}
+		return headerParsed, nil
 	case done:
 		return 0, errors.New("Trying to read from done parser")
 	default:
 		return 0, errors.New("unknown state")
 	}
-	return bytesParsed, nil
 }
 
 const bufferSize = 8
@@ -56,11 +67,12 @@ const headerEnd = "\r\n\r\n"
 
 func RequestFromReader(reader io.Reader) (*Request, error) {
 
-	buf := make([]byte, bufferSize, bufferSize)
+	buf := make([]byte, bufferSize)
 	readToIndex := 0
 
 	request := Request{
 		RequestLine: RequestLine{},
+		Headers:     headers.NewHeaders(),
 		Status:      initialized,
 	}
 
@@ -80,12 +92,14 @@ func RequestFromReader(reader io.Reader) (*Request, error) {
 			return nil, err
 		}
 		readToIndex += numBytesRead
-		numBytesParsed, err := request.parse(buf)
+		numBytesParsed, err := request.parse(buf[:readToIndex])
+		fmt.Println(string(buf), "parsed:", numBytesParsed)
+
 		if err != nil {
 			return nil, err
 		}
 
-		copy(buf, buf[numBytesParsed:readToIndex])
+		copy(buf, buf[numBytesParsed:])
 		readToIndex -= numBytesParsed
 	}
 
