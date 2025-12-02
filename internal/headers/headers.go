@@ -22,6 +22,7 @@ func (h Headers) Parse(data []byte) (n int, done bool, err error) {
 		return 2, true, nil
 	}
 	headerString := string(data[:crlfIndex])
+
 	key, value, err := getHeaderFromString(headerString)
 
 	if err != nil {
@@ -47,6 +48,9 @@ func (h Headers) Get(key string) string {
 
 func getHeaderFromString(s string) (string, string, error) {
 	colonIndex := strings.Index(s, ":")
+	if colonIndex == -1 {
+		return "", "", errors.New("Empty header")
+	}
 	key := s[:colonIndex]
 	value := s[colonIndex+1:]
 
