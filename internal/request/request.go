@@ -45,7 +45,6 @@ func (r *Request) parse(data []byte) (int, error) {
 		r.RequestLine = *requestLine
 		return startLineParsed, nil
 	case ParsingHeaders:
-		fmt.Println("-----------------parsing header------------------")
 		headerParsed, finished, err := r.Headers.Parse(data)
 		if err != nil {
 			return 0, err
@@ -84,6 +83,10 @@ func RequestFromReader(reader io.Reader) (*Request, error) {
 		}
 		numBytesRead, err := reader.Read(buf[readToIndex:])
 		if err != nil {
+
+			if request.Status != done && err == io.EOF {
+				return nil, fmt.Errorf("messages not formatted properly %s", err)
+			}
 			if err == io.EOF {
 				request.Status = done
 				break
@@ -93,7 +96,6 @@ func RequestFromReader(reader io.Reader) (*Request, error) {
 		}
 		readToIndex += numBytesRead
 		numBytesParsed, err := request.parse(buf[:readToIndex])
-		fmt.Println(string(buf), "parsed:", numBytesParsed)
 
 		if err != nil {
 			return nil, err
