@@ -71,15 +71,15 @@ func TestHeaderParse(t *testing.T) {
 	r, err = RequestFromReader(reader)
 	require.Error(t, err)
 
-	// Empty Headers
-	// reader = &chunkReader{
-	// 	data:            "GET / HTTP/1.1\r\n \r\n",
-	// 	numBytesPerRead: 2,
-	// }
-	// r, err = RequestFromReader(reader)
-	// require.NoError(t, err)
-	// require.NotNil(t, r)
-	// require.Empty(t, r.Headers)
+	// Test: Empty Headers
+	reader = &chunkReader{
+		data:            "GET / HTTP/1.1\r\n\r\n",
+		numBytesPerRead: 3,
+	}
+	r, err = RequestFromReader(reader)
+	require.NoError(t, err)
+	require.NotNil(t, r)
+	assert.Empty(t, r.Headers)
 
 	// Duplicate Headers
 	reader = &chunkReader{
@@ -101,16 +101,13 @@ func TestHeaderParse(t *testing.T) {
 	require.NotNil(t, r)
 	require.NotEmpty(t, r.Headers)
 	require.Equal(t, "42069", r.Headers.Get("host"))
-	// Missing End of Headers
+	// Test: Missing End of Headers
 	reader = &chunkReader{
-		data:            "GET / HTTP/1.1\r\n Host:42069\r\n",
-		numBytesPerRead: 2,
+		data:            "GET / HTTP/1.1\r\nHost: localhost:42069\r\nUser-Agent: curl/7.81.0",
+		numBytesPerRead: 3,
 	}
 	r, err = RequestFromReader(reader)
 	require.Error(t, err)
-	// require.NotNil(t,r)
-	// require.NotEmpty(t,r.Headers);
-	// require.Equal(t,"42069",r.Headers.Get("host"))
 }
 
 // Read reads up to len(p) or numBytesPerRead bytes from the string per call
