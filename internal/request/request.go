@@ -30,46 +30,90 @@ type RequestLine struct {
 	Method        string
 }
 
+// func (r *Request) parse(data []byte) (int, error) {
+// 	switch r.Status {
+// 	case initialized:
+//			requestLine, startLineParsed, err := parseRequestLine(data)
+//			if err != nil {
+//				return 0, errors.New("error parsing stream")
+//			}
+//			if startLineParsed == 0 {
+//				return 0, nil
+//			}
+//			r.RequestLine = *requestLine
+//			r.Status = ParsingHeaders
+//			return startLineParsed, nil
+//		case ParsingHeaders:
+//			headerParsed, finished, err := r.Headers.Parse(data)
+//			if err != nil {
+//				return 0, err
+//			}
+//			if finished {
+//				r.Status = done
+//			}
+//			return headerParsed, nil
+//		case done:
+//			return 0, errors.New("trying to read from done parser")
+//		default:
+//			return 0, errors.New("unknown state")
+//		}
+//	}
+
 func (r *Request) parse(data []byte) (int, error) {
+	totalBytesParsed := 0
+	for r.Status != done {
+		n, err := r.parseSingle(data[totalBytesParsed:])
+		if err != nil {
+			return 0, err
+		}
+		totalBytesParsed += n
+		if n == 0 {
+			break
+		}
+	}
+	return totalBytesParsed, nil
+}
+
+func (r *Request) parseSingle(data []byte) (int, error) {
 	switch r.Status {
 	case initialized:
-
-		requestLine, startLineParsed, err := parseRequestLine(data)
+		requestLine, n, err := parseRequestLine(data)
 		if err != nil {
-			return 0, errors.New("Error parsing stream")
+			// something actually went wrong
+			return 0, err
 		}
-		if startLineParsed == 0 {
+		if n == 0 {
+			// just need more data
 			return 0, nil
 		}
-		r.Status = ParsingHeaders
 		r.RequestLine = *requestLine
-		return startLineParsed, nil
+		r.Status = ParsingHeaders
+		return n, nil
 	case ParsingHeaders:
-		headerParsed, finished, err := r.Headers.Parse(data)
+		n, finished, err := r.Headers.Parse(data)
 		if err != nil {
 			return 0, err
 		}
 		if finished {
 			r.Status = done
 		}
-		return headerParsed, nil
+		return n, nil
 	case done:
-		return 0, errors.New("Trying to read from done parser")
+		return 0, fmt.Errorf("error: trying to read data in a done state")
 	default:
-		return 0, errors.New("unknown state")
+		return 0, fmt.Errorf("unknown state")
 	}
 }
 
 const bufferSize = 8
 const crlf = "\r\n"
-const headerEnd = "\r\n\r\n"
 
 func RequestFromReader(reader io.Reader) (*Request, error) {
 
 	buf := make([]byte, bufferSize)
 	readToIndex := 0
 
-	request := Request{
+	request := &Request{
 		RequestLine: RequestLine{},
 		Headers:     headers.NewHeaders(),
 		Status:      initialized,
@@ -83,15 +127,12 @@ func RequestFromReader(reader io.Reader) (*Request, error) {
 		}
 		numBytesRead, err := reader.Read(buf[readToIndex:])
 		if err != nil {
-
-			if request.Status != done && err == io.EOF {
-				return nil, fmt.Errorf("messages not formatted properly %s", err)
-			}
-			if err == io.EOF {
-				request.Status = done
+			if errors.Is(err, io.EOF) {
+				if request.Status != done {
+					return nil, fmt.Errorf("incomplete request, in state: %d, read n bytes on EOF: %d", request.Status, numBytesRead)
+				}
 				break
 			}
-
 			return nil, err
 		}
 		readToIndex += numBytesRead
@@ -105,7 +146,7 @@ func RequestFromReader(reader io.Reader) (*Request, error) {
 		readToIndex -= numBytesParsed
 	}
 
-	return &request, nil
+	return request, nil
 }
 
 func parseRequestLine(request []byte) (*RequestLine, int, error) {
