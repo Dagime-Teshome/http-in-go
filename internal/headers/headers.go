@@ -43,7 +43,11 @@ func (h Headers) Set(key string, value string) {
 
 func (h Headers) Get(key string) string {
 	keyLower := strings.ToLower(key)
-	return h[keyLower]
+	existingValue, exists := h[keyLower]
+	if exists {
+		return existingValue
+	}
+	return ""
 }
 
 func getHeaderFromString(s string) (string, string, error) {
