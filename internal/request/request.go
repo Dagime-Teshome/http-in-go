@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"regexp"
+	"strconv"
 	"strings"
 )
 
@@ -16,11 +17,13 @@ const (
 	initialized Status = iota
 	done
 	ParsingHeaders
+	ParsingBody
 )
 
 type Request struct {
 	RequestLine RequestLine
 	Headers     headers.Headers
+	Body        []byte
 	Status      Status
 }
 
@@ -95,9 +98,21 @@ func (r *Request) parseSingle(data []byte) (int, error) {
 			return 0, err
 		}
 		if finished {
-			r.Status = done
+			r.Status = ParsingBody
 		}
 		return n, nil
+	case ParsingBody:
+		contLen := r.Headers.Get("Content-Length")
+		if contLen == "" {
+			r.Status = done
+		}
+		n := parseRequestBody(data)
+		fmt.Println(n)
+		conLenInt, err := strconv.Atoi(contLen)
+		if err != nil {
+			return 0, err
+		}
+		return conLenInt, nil
 	case done:
 		return 0, fmt.Errorf("error: trying to read data in a done state")
 	default:
@@ -120,12 +135,16 @@ func RequestFromReader(reader io.Reader) (*Request, error) {
 	}
 
 	for request.Status != done {
+
 		if readToIndex >= len(buf) {
 			newBuf := make([]byte, len(buf)*2)
 			copy(newBuf, buf)
 			buf = newBuf
 		}
 		numBytesRead, err := reader.Read(buf[readToIndex:])
+		// fmt.Println(request, "----------request-----------")
+		// fmt.Println(string(buf), "----------buffer-----------")
+		// fmt.Println(numBytesRead, "----------bytes read-----------")
 		if err != nil {
 			if errors.Is(err, io.EOF) {
 				if request.Status != done {
@@ -147,6 +166,9 @@ func RequestFromReader(reader io.Reader) (*Request, error) {
 	}
 
 	return request, nil
+}
+func parseRequestBody(data []byte) int {
+	return 0
 }
 
 func parseRequestLine(request []byte) (*RequestLine, int, error) {
