@@ -90,7 +90,8 @@ func TestHeaderParse(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, r)
 	require.NotEmpty(t, r.Headers)
-	require.Equal(t, "localhost:42069,duplicate", r.Headers.Get("host"))
+	value, _ := r.Headers.Get("Host")
+	require.Equal(t, "localhost:42069,duplicate", value)
 	// Case Insensitive Headers
 	reader = &chunkReader{
 		data:            "GET / HTTP/1.1\r\nHost:42069\r\n\r\n",
@@ -100,7 +101,8 @@ func TestHeaderParse(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, r)
 	require.NotEmpty(t, r.Headers)
-	require.Equal(t, "42069", r.Headers.Get("host"))
+	value, _ = r.Headers.Get("Host")
+	require.Equal(t, "42069", value)
 	// Test: Missing End of Headers
 	reader = &chunkReader{
 		data:            "GET / HTTP/1.1\r\nHost: localhost:42069\r\nUser-Agent: curl/7.81.0",
@@ -160,6 +162,7 @@ func TestBodyParse(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, r)
 	// No Content-Length but Body Exists (shouldn't error; we're assuming Content-Length will be present if a body exists)
+	// Test: No Content-Length but Body Exists
 	reader = &chunkReader{
 		data: "POST /submit HTTP/1.1\r\n" +
 			"Host: localhost:42069\r\n" +
@@ -170,7 +173,7 @@ func TestBodyParse(t *testing.T) {
 	r, err = RequestFromReader(reader)
 	require.NoError(t, err)
 	require.NotNil(t, r)
-	assert.Equal(t, "hello world!\n", string(r.Body))
+	assert.Equal(t, "", string(r.Body))
 }
 
 // Read reads up to len(p) or numBytesPerRead bytes from the string per call
