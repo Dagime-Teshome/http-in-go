@@ -21,10 +21,11 @@ const (
 )
 
 type Request struct {
-	RequestLine RequestLine
-	Headers     headers.Headers
-	Body        []byte
-	Status      Status
+	RequestLine    RequestLine
+	Headers        headers.Headers
+	Body           []byte
+	Status         Status
+	bodyLengthRead int
 }
 
 type RequestLine struct {
@@ -102,17 +103,27 @@ func (r *Request) parseSingle(data []byte) (int, error) {
 		}
 		return n, nil
 	case ParsingBody:
-		contLen := r.Headers.Get("Content-Length")
-		if contLen == "" {
+		contLen, err := r.Headers.Get("Content-Length")
+		if err != nil {
 			r.Status = done
+			return len(data), nil
 		}
-		n := parseRequestBody(data)
-		fmt.Println(n)
 		conLenInt, err := strconv.Atoi(contLen)
 		if err != nil {
 			return 0, err
 		}
-		return conLenInt, nil
+		// /
+
+		r.Body = append(r.Body, data...)
+		r.bodyLengthRead += len(data)
+		if r.bodyLengthRead > conLenInt {
+			return 0, fmt.Errorf("Content-Length too large")
+		}
+		if r.bodyLengthRead == conLenInt {
+			r.Status = done
+		}
+		return len(data), nil
+
 	case done:
 		return 0, fmt.Errorf("error: trying to read data in a done state")
 	default:
@@ -131,6 +142,7 @@ func RequestFromReader(reader io.Reader) (*Request, error) {
 	request := &Request{
 		RequestLine: RequestLine{},
 		Headers:     headers.NewHeaders(),
+		Body:        []byte{},
 		Status:      initialized,
 	}
 
@@ -142,9 +154,6 @@ func RequestFromReader(reader io.Reader) (*Request, error) {
 			buf = newBuf
 		}
 		numBytesRead, err := reader.Read(buf[readToIndex:])
-		// fmt.Println(request, "----------request-----------")
-		// fmt.Println(string(buf), "----------buffer-----------")
-		// fmt.Println(numBytesRead, "----------bytes read-----------")
 		if err != nil {
 			if errors.Is(err, io.EOF) {
 				if request.Status != done {
@@ -166,9 +175,6 @@ func RequestFromReader(reader io.Reader) (*Request, error) {
 	}
 
 	return request, nil
-}
-func parseRequestBody(data []byte) int {
-	return 0
 }
 
 func parseRequestLine(request []byte) (*RequestLine, int, error) {
