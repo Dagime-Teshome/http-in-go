@@ -15,7 +15,8 @@ func TestHeadersParsing(t *testing.T) {
 	n, done, err := h.Parse(data)
 	require.NoError(t, err)
 	require.NotNil(t, h)
-	assert.Equal(t, "localhost:42069", h.Get("Host"))
+	value, _ := h.Get("Host")
+	assert.Equal(t, "localhost:42069", value)
 	assert.Equal(t, 23, n)
 	assert.False(t, done)
 
@@ -34,7 +35,8 @@ func TestHeadersParsing(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, h)
 	assert.Equal(t, "localhost:42069", h["host"])
-	assert.Equal(t, "curl/7.81.0", h.Get("User-Agent"))
+	value, _ = h.Get("User-Agent")
+	assert.Equal(t, "curl/7.81.0", value)
 	assert.Equal(t, 25, n)
 	assert.False(t, done)
 
@@ -79,7 +81,8 @@ func TestHeadersParsing(t *testing.T) {
 	h = make(Headers)
 	data = []byte("Host: localhost:42069\r\n\r\n")
 	n, done, err = h.Parse(data)
-	assert.Equal(t, "localhost:42069", h.Get("host"))
+	value, _ = h.Get("Host")
+	assert.Equal(t, "localhost:42069", value)
 	assert.Equal(t, 23, n)
 	assert.False(t, done)
 
@@ -89,7 +92,8 @@ func TestHeadersParsing(t *testing.T) {
 	n, done, err = h.Parse(data)
 	require.NoError(t, err)
 	require.NotNil(t, h)
-	assert.Equal(t, "initialValue,anotherValue", h.Get("Host"))
+	value, _ = h.Get("Host")
+	assert.Equal(t, "initialValue,anotherValue", value)
 	assert.Equal(t, 20, n)
 	assert.False(t, done)
 
