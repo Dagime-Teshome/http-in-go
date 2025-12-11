@@ -1,6 +1,7 @@
 package server
 
 import (
+	"MODULE_NAME/internal/response"
 	"fmt"
 	"log"
 	"net"
@@ -10,9 +11,8 @@ import (
 type ServerStatus int
 
 type Server struct {
-	listener   net.Listener
-	connection net.Conn
-	closed     atomic.Bool
+	listener net.Listener
+	closed   atomic.Bool
 }
 
 const (
@@ -22,33 +22,39 @@ const (
 
 func (s *Server) Close() {
 	s.closed.Store(true)
-	s.listener.Close()
-	s.connection.Close()
+	if s.listener != nil {
+		s.listener.Close()
+	}
+	return
 }
 
 func (s *Server) listen() {
 
-	if !s.closed.Load() {
-		for {
-			conn, err := s.listener.Accept()
-			if err != nil {
-				log.Fatal("error accepting connection : \n", err)
+	for {
+		conn, err := s.listener.Accept()
+		if err != nil {
+			if s.closed.Load() {
+				return
 			}
-			s.connection = conn
-			go s.handle(conn)
+			log.Printf("Error accepting connection: %v", err)
+			continue
 		}
+		go s.handle(conn)
 	}
 
 }
 
 func (s *Server) handle(conn net.Conn) {
 	defer conn.Close()
-	resp := []byte("HTTP/1.1 200 OK\r\n" +
-		"Content-Type: text/plain\r\n" +
-		"Content-Length: 13\r\n" +
-		"\r\n" +
-		"Hello World!")
-	conn.Write(resp)
+	response.WriteStatusLine(conn, 200)
+	headers := response.GetDefaultHeaders(0)
+	response.WriteHeaders(conn, headers)
+	// resp := []byte("HTTP/1.1 200 OK\r\n" +
+	// 	"Content-Type: text/plain\r\n" +
+	// 	"Content-Length: 13\r\n" +
+	// 	"\r\n" +
+	// 	"Hello World!")
+	// conn.Write(resp)
 }
 func Serve(port int) (*Server, error) {
 	portString := fmt.Sprintf(":%d", port)
