@@ -1,8 +1,11 @@
 package server
 
 import (
+	"MODULE_NAME/internal/request"
 	"MODULE_NAME/internal/response"
+	"bytes"
 	"fmt"
+	"io"
 	"log"
 	"net"
 	"sync/atomic"
@@ -12,8 +15,24 @@ type ServerStatus int
 
 type Server struct {
 	listener net.Listener
+	handler  Handler
 	closed   atomic.Bool
 }
+
+type HandlerError struct {
+	StatusCode response.StatusCode
+	Message    string
+}
+
+func (he HandlerError) write(w io.Writer) {
+
+	response.WriteStatusLine(w, he.StatusCode)
+	headers := response.GetDefaultHeaders(len(he.Message))
+	response.WriteHeaders(w, headers)
+	w.Write([]byte(he.Message))
+}
+
+type Handler func(w io.Writer, req *request.Request) *HandlerError
 
 const (
 	Listening ServerStatus = iota
@@ -46,17 +65,24 @@ func (s *Server) listen() {
 
 func (s *Server) handle(conn net.Conn) {
 	defer conn.Close()
-	response.WriteStatusLine(conn, 200)
-	headers := response.GetDefaultHeaders(0)
-	response.WriteHeaders(conn, headers)
-	// resp := []byte("HTTP/1.1 200 OK\r\n" +
-	// 	"Content-Type: text/plain\r\n" +
-	// 	"Content-Length: 13\r\n" +
-	// 	"\r\n" +
-	// 	"Hello World!")
-	// conn.Write(resp)
+	request, err := request.RequestFromReader(conn)
+	if err != nil {
+		handlerError := HandlerError{
+			StatusCode: 400,
+			Message:    err.Error(),
+		}
+		handlerError.write(conn)
+		return
+	}
+	buf := bytes.NewBuffer([]byte{})
+	HandlerError := s.handler(buf, request)
+	if HandlerError != nil {
+		HandlerError.write(conn)
+	}
+	successWriter(conn, buf.Bytes())
+
 }
-func Serve(port int) (*Server, error) {
+func Serve(port int, handler Handler) (*Server, error) {
 	portString := fmt.Sprintf(":%d", port)
 	listener, err := net.Listen("tcp", portString)
 
@@ -65,8 +91,16 @@ func Serve(port int) (*Server, error) {
 	}
 	server := &Server{
 		listener: listener,
+		handler:  handler,
 	}
 	server.closed.Store(false)
 	go server.listen()
 	return server, nil
+}
+
+func successWriter(w io.Writer, buf []byte) {
+	response.WriteStatusLine(w, 200)
+	headers := response.GetDefaultHeaders(len(buf))
+	response.WriteHeaders(w, headers)
+	w.Write(buf)
 }
