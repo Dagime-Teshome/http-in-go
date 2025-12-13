@@ -15,6 +15,32 @@ const (
 	StatusInternalError StatusCode = 500
 )
 
+type Writer struct {
+	ResWriter io.Writer
+}
+
+func (w *Writer) WriteStatusLine(statusCode StatusCode) error {
+	err := WriteStatusLine(w.ResWriter, statusCode)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+func (w *Writer) WriteHeaders(headers headers.Headers) error {
+
+	err := WriteHeaders(w.ResWriter, headers)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+func (w *Writer) WriteBody(p []byte) (int, error) {
+	if len(p) <= 0 {
+		return 0, fmt.Errorf("Empty body write")
+	}
+	w.ResWriter.Write(p)
+	return len(p), nil
+}
 func WriteStatusLine(w io.Writer, statusCode StatusCode) error {
 	switch statusCode {
 	case StatusOK:
