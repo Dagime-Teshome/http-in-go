@@ -40,7 +40,13 @@ func (h Headers) Set(key string, value string) {
 	}
 	h[key] = value
 }
-
+func (h Headers) SetOVR(key string, value string) {
+	_, exists := h[key]
+	if exists {
+		h[key] = value
+		return
+	}
+}
 func (h Headers) Get(key string) (string, error) {
 	keyLower := strings.ToLower(key)
 	existingValue, exists := h[keyLower]
