@@ -3,7 +3,6 @@ package server
 import (
 	"MODULE_NAME/internal/request"
 	"MODULE_NAME/internal/response"
-	"bytes"
 	"fmt"
 	"io"
 	"log"
@@ -19,20 +18,20 @@ type Server struct {
 	closed   atomic.Bool
 }
 
-type HandlerError struct {
-	StatusCode response.StatusCode
-	Message    string
-}
+// type HandlerError struct {
+// 	StatusCode response.StatusCode
+// 	Message    string
+// }
 
-func (he HandlerError) write(w io.Writer) {
+// func (he HandlerError) write(w io.Writer) {
 
-	response.WriteStatusLine(w, he.StatusCode)
-	headers := response.GetDefaultHeaders(len(he.Message))
-	response.WriteHeaders(w, headers)
-	w.Write([]byte(he.Message))
-}
+// 	response.WriteStatusLine(w, he.StatusCode)
+// 	headers := response.GetDefaultHeaders(len(he.Message))
+// 	response.WriteHeaders(w, headers)
+// 	w.Write([]byte(he.Message))
+// }
 
-type Handler func(w io.Writer, req *request.Request) *HandlerError
+type Handler func(w *response.Writer, req *request.Request)
 
 const (
 	Listening ServerStatus = iota
@@ -67,19 +66,19 @@ func (s *Server) handle(conn net.Conn) {
 	defer conn.Close()
 	request, err := request.RequestFromReader(conn)
 	if err != nil {
-		handlerError := HandlerError{
-			StatusCode: 400,
-			Message:    err.Error(),
+		responseWrite := &response.Writer{
+			ResWriter: conn,
 		}
-		handlerError.write(conn)
+		responseWrite.WriteStatusLine(400)
+		header := response.GetDefaultHeaders(0)
+		responseWrite.WriteHeaders(header)
 		return
 	}
-	buf := bytes.NewBuffer([]byte{})
-	HandlerError := s.handler(buf, request)
-	if HandlerError != nil {
-		HandlerError.write(conn)
+	responseStr := &response.Writer{
+		ResWriter: conn,
 	}
-	successWriter(conn, buf.Bytes())
+
+	s.handler(responseStr, request)
 
 }
 func Serve(port int, handler Handler) (*Server, error) {
