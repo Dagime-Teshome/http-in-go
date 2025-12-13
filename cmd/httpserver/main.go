@@ -2,8 +2,9 @@ package main
 
 import (
 	"MODULE_NAME/internal/request"
+	"MODULE_NAME/internal/response"
 	"MODULE_NAME/internal/server"
-	"io"
+	"bytes"
 	"log"
 	"os"
 	"os/signal"
@@ -26,27 +27,61 @@ func main() {
 	log.Println("Server gracefully stopped")
 }
 
-func handlerFunction(w io.Writer, req *request.Request) *server.HandlerError {
-	var errorHandler = &server.HandlerError{}
+func handlerFunction(w *response.Writer, req *request.Request) {
+	buf := bytes.NewBuffer([]byte{})
 	switch req.RequestLine.Method {
 	case "GET":
 		switch req.RequestLine.RequestTarget {
 		case "/yourproblem":
-			errorHandler = &server.HandlerError{
-				StatusCode: 400,
-				Message:    "Your problem is not my problem",
-			}
+			buf.Write([]byte(`<html>
+							<head>
+								<title>400 Bad Request</title>
+							</head>
+							<body>
+								<h1>Bad Request</h1>
+								<p>Your request honestly kinda sucked.</p>
+							</body>
+							</html>`))
+			w.WriteStatusLine(response.StatusBadRequest)
+			header := response.GetDefaultHeaders(buf.Len())
+			header.SetOVR("Content-Type", "text/html")
+			w.WriteHeaders(header)
+			w.WriteBody(buf.Bytes())
+
 		case "/myproblem":
-			errorHandler = &server.HandlerError{
-				StatusCode: 500,
-				Message:    "Woopsie, my bad",
-			}
-		case "/use-nvim":
-			w.Write([]byte("All good, frfr"))
-			errorHandler = nil
+			buf.Write([]byte(`<html>
+								<head>
+									<title>500 Internal Server Error</title>
+								</head>
+								<body>
+									<h1>Internal Server Error</h1>
+									<p>Okay, you know what? This one is on me.</p>
+								</body>
+								</html>`))
+			w.WriteStatusLine(response.StatusInternalError)
+			header := response.GetDefaultHeaders(buf.Len())
+			header.SetOVR("Content-Type", "text/html")
+			w.WriteHeaders(header)
+			w.WriteBody(buf.Bytes())
+		case "/":
+			buf.Write([]byte(`<html>
+								<head>
+									<title>200 OK</title>
+								</head>
+								<body>
+									<h1>Success!</h1>
+									<p>Your request was an absolute banger.</p>
+								</body>
+								</html>
+
+								`))
+			w.WriteStatusLine(response.StatusOK)
+			header := response.GetDefaultHeaders(buf.Len())
+			header.SetOVR("Content-Type", "text/html")
+			w.WriteHeaders(header)
+			w.WriteBody(buf.Bytes())
 		}
 
 	}
 
-	return errorHandler
 }
