@@ -41,6 +41,20 @@ func (w *Writer) WriteBody(p []byte) (int, error) {
 	w.ResWriter.Write(p)
 	return len(p), nil
 }
+
+func (w *Writer) WriteChunkedBody(p []byte) (int, error) {
+	sizeline := []byte(fmt.Sprintf("%x\r\n", len(p)))
+	trailer := []byte("\r\n")
+	w.WriteBody(sizeline)
+	w.WriteBody(p)
+	w.WriteBody(trailer)
+	return len(sizeline) + len(p) + len(trailer), nil
+}
+func (w *Writer) WriteChunkedBodyDone() (int, error) {
+	writeByte := []byte(fmt.Sprintf("%x\r\n", 0) + "\r\n")
+	w.WriteBody(writeByte)
+	return 0, nil
+}
 func WriteStatusLine(w io.Writer, statusCode StatusCode) error {
 	switch statusCode {
 	case StatusOK:
