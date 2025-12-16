@@ -3,6 +3,7 @@ package headers
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"strings"
 )
 
@@ -41,11 +42,15 @@ func (h Headers) Set(key string, value string) {
 	h[key] = value
 }
 func (h Headers) SetOVR(key string, value string) {
+	h[key] = value
+}
+
+func (h Headers) Delete(key string) error {
 	_, exists := h[key]
 	if exists {
-		h[key] = value
-		return
+		delete(h, key)
 	}
+	return fmt.Errorf("key %s doesn't exist in headers", key)
 }
 func (h Headers) Get(key string) (string, error) {
 	keyLower := strings.ToLower(key)
