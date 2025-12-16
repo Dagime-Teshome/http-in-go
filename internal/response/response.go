@@ -38,22 +38,57 @@ func (w *Writer) WriteBody(p []byte) (int, error) {
 	if len(p) <= 0 {
 		return 0, fmt.Errorf("Empty body write")
 	}
-	w.ResWriter.Write(p)
+	_, err := w.ResWriter.Write(p)
+	if err != nil {
+		fmt.Errorf(err.Error())
+	}
 	return len(p), nil
 }
 
 func (w *Writer) WriteChunkedBody(p []byte) (int, error) {
-	sizeline := []byte(fmt.Sprintf("%x\r\n", len(p)))
-	trailer := []byte("\r\n")
-	w.WriteBody(sizeline)
-	w.WriteBody(p)
-	w.WriteBody(trailer)
-	return len(sizeline) + len(p) + len(trailer), nil
+
+	chunkSize := len(p)
+
+	nTotal := 0
+	n, err := fmt.Fprintf(w.ResWriter, "%x\r\n", chunkSize)
+	if err != nil {
+		return nTotal, err
+	}
+	nTotal += n
+
+	n, err = w.ResWriter.Write(p)
+	if err != nil {
+		return nTotal, err
+	}
+	nTotal += n
+
+	n, err = w.ResWriter.Write([]byte("\r\n"))
+	if err != nil {
+		return nTotal, err
+	}
+	nTotal += n
+	return nTotal, nil
 }
 func (w *Writer) WriteChunkedBodyDone() (int, error) {
-	writeByte := []byte(fmt.Sprintf("%x\r\n", 0) + "\r\n")
-	w.WriteBody(writeByte)
-	return 0, nil
+
+	n, err := w.ResWriter.Write([]byte("0\r\n"))
+	if err != nil {
+		return n, err
+	}
+	return n, nil
+}
+
+func (w *Writer) WriteTrailers(h headers.Headers) error {
+	headerString := ""
+	for key, value := range h {
+		headerString += fmt.Sprintf("%s: %s\r\n", key, value)
+	}
+	headerString += "\r\n"
+	_, err := w.ResWriter.Write([]byte(headerString))
+	if err != nil {
+		return err
+	}
+	return nil
 }
 func WriteStatusLine(w io.Writer, statusCode StatusCode) error {
 	switch statusCode {
@@ -94,7 +129,7 @@ func GetDefaultHeaders(contentLen int) headers.Headers {
 func WriteHeaders(w io.Writer, headers headers.Headers) error {
 	headerString := ""
 	for key, value := range headers {
-		headerString += fmt.Sprintf("%s:%s\r\n", key, value)
+		headerString += fmt.Sprintf("%s: %s\r\n", key, value)
 	}
 	headerString += "\r\n"
 	_, err := w.Write([]byte(headerString))
